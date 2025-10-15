@@ -1,232 +1,113 @@
-#!/usr/bin/env node
+// manos-agent.mjs
+// تشغيل: node manos-agent.mjs
 
-/**
- * Manos Agent - Automated Task Execution Agent
- * This agent polls the VA server for pending tasks and executes them by calling Manus API.
- */
+const fetch = globalThis.fetch ?? (await import('node-fetch')).default;
 
-import fetch from 'node-fetch';
-
-const BASE = process.env.VA_BASE ?? 'http://localhost:8080';
-const MANOS_API_KEY = process.env.MANOS_API_KEY;
-const MANOS_API_URL = process.env.MANUS_API_URL || 'https://api.manus.im/v1';
-
-const HEAD = { 
-  'Authorization': `Bearer ${process.env.MANOS_TOKEN}`, 
-  'Content-Type':'application/json' 
+const ENV = {
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  VA_BASE: (process.env.VA_BASE || '').replace(/\/+$/, ''),
+  MANUS_API_URL: (process.env.MANUS_API_URL || '').replace(/\/+$/, ''), // <-- مهم
+  MANOS_API_KEY: process.env.MANOS_API_KEY,
+  MANOS_TOKEN: process.env.MANOS_TOKEN, // إن كنت تستعمله أيضاً
 };
 
-if (!MANOS_API_KEY) {
-  console.error('Error: MANOS_API_KEY environment variable is required');
-  process.exit(1);
+function need(name) {
+  if (!ENV[name]) {
+    throw new Error(`${name} environment variable is required`);
+  }
+  return ENV[name];
 }
 
-/**
- * Call Manus API to execute a task
- */
-async function callManusAPI(prompt) {
+function log(...args) {
+  console.log(...args);
+}
+
+async function fetchJSON(url, init = {}) {
+  // رؤوس افتراضية + تعريف User-Agent لتجنب حجب من بعض الشبكات
+  const headers = {
+    'accept': 'application/json',
+    'content-type': 'application/json',
+    'user-agent': 'ManosAgent/1.0 (+github actions)',
+    ...(init.headers || {}),
+  };
+  const res = await fetch(url, { ...init, headers });
+
+  const text = await res.text();
+  if (!res.ok) {
+    // اطبع أوّل 200 حرف لفهم المشكلة
+    throw new Error(`HTTP ${res.status} ${res.statusText} from ${url}\n${text.slice(0, 200)}`);
+  }
   try {
-    const response = await fetch(`${MANOS_API_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MANOS_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'manus-1',
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Manus API error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result.choices?.[0]?.message?.content || 'No response from Manus';
-  } catch (error) {
-    throw new Error(`Failed to call Manus API: ${error.message}`);
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Non-JSON response from ${url}\n${text.slice(0, 200)}`);
   }
 }
 
-/**
- * Execute a task by calling Manus API with appropriate instructions
- */
-async function execTask(task){
-  const { type, payload } = task;
-  
-  console.log(`Executing task type: ${type}`);
-  
-  let prompt = '';
-  
-  // Build the appropriate prompt based on task type
-  switch(type) {
-    case 'va.ws.health':
-      prompt = 'Check the WebSocket health status and return a health report.';
-      break;
-      
-    case 'va.cmd.replay':
-      prompt = `Replay the following voice command that failed: ${JSON.stringify(payload)}`;
-      break;
-      
-    case 'asr.install_models':
-      prompt = 'Install and configure ASR models (whisper.cpp and Vosk) for Arabic speech recognition. Return installation status.';
-      break;
-      
-    case 'asr.switch_offline_on_fail':
-      prompt = 'Switch ASR to offline mode due to network failure. Configure fallback to local models.';
-      break;
-      
-    case 'analytics.rollup_daily':
-      prompt = 'Perform daily analytics rollup: aggregate user engagement, VA performance metrics, and behavioral insights.';
-      break;
-      
-    case 'analytics.behavioral_insights.sync':
-      prompt = 'Sync behavioral insights from va_phrase_stats table and generate user behavior patterns.';
-      break;
-      
-    case 'fx.refresh':
-      prompt = 'Refresh Syrian Pound (SYP) black market exchange rates from 5 sources, filter anomalies, and calculate weighted average.';
-      break;
-      
-    case 'fx.validate_anomalies':
-      prompt = 'Validate FX data for anomalies, remove outliers, and ensure data integrity.';
-      break;
-      
-    case 'sec.rls_audit':
-      prompt = 'Audit Row Level Security (RLS) policies for all sensitive tables in Supabase. Report any security issues.';
-      break;
-      
-    case 'sec.service_paths.lint':
-      prompt = 'Lint all service API paths for security vulnerabilities, authentication issues, and authorization problems.';
-      break;
-      
-    case 'ci.smoke':
-      prompt = 'Run smoke tests after deployment: test all critical endpoints, verify database connectivity, check WebSocket functionality.';
-      break;
-      
-    case 'ci.uat_report':
-      prompt = 'Generate User Acceptance Testing (UAT) report with all test scenarios and results. Format: 0 failures / 0 errors.';
-      break;
-      
-    case 'ci.rollback_on_fail':
-      prompt = 'Deployment failed. Perform automatic rollback to the last stable version.';
-      break;
-      
-    case 'build.apk.release':
-      prompt = 'Build and sign release APK for both Smart Assistant and Control Panel Flutter applications. Configure Codemagic CI/CD pipeline.';
-      break;
-      
-    case 'handover.generate_brief':
-      prompt = 'Generate handover documentation (PDF) including: setup instructions, environment variables, API documentation, and UAT checklist.';
-      break;
-      
-    case 'accounting.add_purchase':
-      prompt = `Add a purchase to the accounting system with the following details: ${JSON.stringify(payload)}`;
-      break;
-      
-    case 'backups.verify':
-      prompt = 'Verify all database backups: check integrity, test restoration, and report status.';
-      break;
-      
-    default:
-      prompt = `Execute the following task: Type: ${type}, Payload: ${JSON.stringify(payload)}`;
-  }
-  
-  // Call Manus API to execute the task
+function apiUrl(path) {
+  return `${need('MANUS_API_URL')}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
+async function pollOnce() {
+  // مثال نقطة سحب مهام — عدّل المسار حسب APIك إن لزم:
+  const url = apiUrl('/ops/poll');
+
+  const headers = {
+    'x-api-key': need('MANOS_API_KEY'),
+  };
+  if (ENV.MANOS_TOKEN) headers['authorization'] = `Bearer ${ENV.MANOS_TOKEN}`;
+
+  log('Polling:', url);
+  const data = await fetchJSON(url, { method: 'GET', headers });
+  return data; // توقع { tasks: [...] }
+}
+
+async function execTask(task) {
+  // مثال تنفيذ — عدّل المسار/البودي حسب APIك
+  const url = apiUrl('/ops/exec');
+  const headers = {
+    'x-api-key': need('MANOS_API_KEY'),
+  };
+  if (ENV.MANOS_TOKEN) headers['authorization'] = `Bearer ${ENV.MANOS_TOKEN}`;
+
+  const body = JSON.stringify({ id: task.id });
+  log('Exec:', task.id, url);
+  const out = await fetchJSON(url, { method: 'POST', headers, body });
+  return out;
+}
+
+async function main() {
+  need('MANUS_API_URL');
+  need('MANOS_API_KEY');
+
+  log('========================================');
+  log('Manos Agent started.');
+  log('VA Server URL:', ENV.VA_BASE || '(not set)');
+  log('MANUS API URL:', ENV.MANUS_API_URL);
+  log('Authorization: ', ENV.MANOS_TOKEN ? 'Bearer token present' : 'No bearer');
+  log('MANUS API KEY: ', 'Configured');
+  log('========================================');
+
   try {
-    const manusResponse = await callManusAPI(prompt);
-    return { 
-      ok: true, 
-      result: manusResponse,
-      type: type,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    return { 
-      ok: false, 
-      error: error.message,
-      type: type
-    };
-  }
-}
+    const polled = await pollOnce(); // { tasks: [...] } متوقعة
+    const tasks = polled?.tasks ?? [];
+    log(`Fetched ${tasks.length} task(s).`);
 
-/**
- * Main polling loop
- */
-async function loop(){
-  while(true){
-    try {
-      const next = await fetch(`${BASE}/ops/next`, { method:'POST', headers: HEAD });
-      const { task } = await next.json();
-      
-      if(!task){ 
-        await new Promise(r=>setTimeout(r, 1500)); 
-        continue; 
-      }
-      
-      console.log(`\n[${new Date().toISOString()}] Received task: ${task.id} (${task.type})`);
-      
+    for (const t of tasks) {
       try {
-        const res = await execTask(task);
-        await fetch(`${BASE}/ops/complete`, {
-          method:'POST', 
-          headers: HEAD, 
-          body: JSON.stringify({ 
-            id: task.id, 
-            ok: !!res.ok, 
-            result: res, 
-            error: res.error 
-          })
-        });
-        console.log(`[${new Date().toISOString()}] Task ${task.id} completed: ${res.ok ? 'SUCCESS' : 'FAILED'}`);
-        if (res.ok && res.result) {
-          console.log(`Result preview: ${res.result.substring(0, 200)}...`);
-        }
+        const res = await execTask(t);
+        log('Task done:', t.id, res?.status || 'ok');
       } catch (e) {
-        await fetch(`${BASE}/ops/complete`, {
-          method:'POST', 
-          headers: HEAD, 
-          body: JSON.stringify({ 
-            id: task.id, 
-            ok:false, 
-            error: String(e) 
-          })
-        });
-        console.error(`[${new Date().toISOString()}] Task ${task.id} failed with exception:`, e);
+        console.error('Task failed:', t.id, e.message);
       }
-    } catch (e) {
-      console.error(`[${new Date().toISOString()}] Polling error:`, e.message);
-      await new Promise(r=>setTimeout(r, 5000)); // Wait 5 seconds before retrying
     }
+  } catch (e) {
+    console.error('Polling error:', e.message);
   }
 }
 
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n\nShutting down Manos Agent...');
-  process.exit(0);
+main().catch(e => {
+  console.error('Fatal:', e.message);
+  process.exit(1);
 });
-
-process.on('SIGTERM', () => {
-  console.log('\n\nShutting down Manos Agent...');
-  process.exit(0);
-});
-
-// Start the agent
-console.log('='.repeat(60));
-console.log('Manos Agent started.');
-console.log(`VA Server URL: ${BASE}`);
-console.log(`Manus API URL: ${MANOS_API_URL}`);
-console.log(`Authorization: ${HEAD.Authorization ? 'Configured' : 'Missing'}`);
-console.log(`Manus API Key: ${MANOS_API_KEY ? 'Configured' : 'Missing'}`);
-console.log('='.repeat(60));
-console.log('');
-
-loop();
-
