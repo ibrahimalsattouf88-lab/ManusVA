@@ -1,0 +1,24 @@
+{
+  "name": "manos-agent",
+  "version": "1.0.0",
+  "description": "Automated task execution agent for Manus VA system",
+  "type": "module",
+  "main": "manos-agent.mjs",
+  "scripts": {
+    "start": "node manos-agent.mjs",
+    "dev": "node --watch manos-agent.mjs"
+  },
+  "keywords": [
+    "automation",
+    "agent",
+    "manus",
+    "va"
+  ],
+  "author": "Manus Team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  }
+}
+

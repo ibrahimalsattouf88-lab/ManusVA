@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+dist/
+*.env
+.nvm/
+apps/control-panel-app/
+apps/smart-assistant-app/
+
