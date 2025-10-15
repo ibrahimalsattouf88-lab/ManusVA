@@ -1,32 +1,35 @@
-name: Manos Agent – Pull & Execute Ops
+name: Manos Agent — Pull & Execute Ops
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/10 * * * *" # كل 10 دقائق
 
 jobs:
   run_agent:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: |
-          npm i --no-audit --no-fund
+          npm --version
+          # نضمن وجود node-fetch@3 عندما نعمل في بيئة لا تدعم fetch
+          node -e "try{require('node-fetch');console.log('node-fetch present')}catch(e){process.exit(1)}" || npm i node-fetch@3
 
-      - name: Run manos-agent (long-poll once)
+      - name: Run manos-agent (one shot)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VA_BASE: ${{ secrets.VA_BASE }}
-          MANOS_TOKEN: ${{ secrets.MANOS_TOKEN }}
           MANUS_API_URL: ${{ secrets.MANUS_API_URL }}
           MANOS_API_KEY: ${{ secrets.MANOS_API_KEY }}
+          MANOS_TOKEN: ${{ secrets.MANOS_TOKEN }}
         run: |
           node manos-agent.mjs
