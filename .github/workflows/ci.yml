@@ -3,33 +3,35 @@ name: CI — ManusVA
 on:
   push:
     branches: [ master ]
-    paths:
-      - ".github/workflows/ci.yml"
-      - "manos-agent.mjs"
-      - "tools/**"
-      - "supabase_fixes.sql"
-      - "tasks_verification.md"
-      - "apps/va-server/**"
   workflow_dispatch:
 
 jobs:
-  supabase_sql_checks:
+  lint_sql:
     name: Supabase SQL Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Lint SQL (light)
+      - name: Check SQL Files
         run: |
           set -e
-          echo "Checking SQL presence & basic format..."
-          [ -f supabase_fixes.sql ] && echo "supabase_fixes.sql OK" || echo "No supabase_fixes.sql"
-          [ -f tools/initial_tasks.sql ] && echo "tools/initial_tasks.sql OK" || echo "No initial_tasks.sql"
+          echo "🔍 Checking SQL files..."
+          if [ -f supabase_fixes.sql ]; then
+            echo "✅ supabase_fixes.sql exists"
+          else
+            echo "⚠️ Missing supabase_fixes.sql"
+          fi
 
-  # لا تبني أندرويد هنا — هذا المستودع ليس Flutter
+          if [ -f tools/initial_tasks.sql ]; then
+            echo "✅ initial_tasks.sql exists"
+          else
+            echo "⚠️ Missing tools/initial_tasks.sql"
+          fi
+
+  # تعطيل بناء الأندرويد نهائيًا
   android_debug_build:
-    if: ${{ false }} # Disabled on ManusVA (no Flutter app here)
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Disabled."
+      - run: echo "Android build skipped for ManusVA (no Flutter app)."
