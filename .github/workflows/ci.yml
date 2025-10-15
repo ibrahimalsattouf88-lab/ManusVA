@@ -1,0 +1,60 @@
+name: CI – Lint, Build & Health
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  flutter_android_debug:
+    name: Android Debug Build (Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Flutter app dir
+        id: find_dir
+        run: |
+          set -e
+          if [ -f "pubspec.yaml" ]; then echo "appdir=." >> $GITHUB_OUTPUT; exit 0; fi
+          if [ -f "apps/smart-assistant-app/pubspec.yaml" ]; then echo "appdir=apps/smart-assistant-app" >> $GITHUB_OUTPUT; exit 0; fi
+          if [ -f "apps/control-panel-app/pubspec.yaml" ]; then echo "appdir=apps/control-panel-app" >> $GITHUB_OUTPUT; exit 0; fi
+          echo "No Flutter app found."; exit 1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          cache: true
+
+      - name: Pub get
+        run: |
+          cd ${{ steps.find_dir.outputs.appdir }}
+          flutter pub get
+
+      - name: Quick fix (remove package= from AndroidManifest.xml if exists)
+        run: |
+          cd ${{ steps.find_dir.outputs.appdir }}
+          FILE=android/app/src/main/AndroidManifest.xml
+          if [ -f "$FILE" ]; then
+            sed -i 's/\s*package="[^"]*"\s*//' "$FILE" || true
+          fi
+
+      - name: Android debug build
+        env:
+          # لو موجود .env في المشروع نقرأه
+          $(echo "${{ secrets.NODE_ENV }}" >/dev/null)
+        run: |
+          cd ${{ steps.find_dir.outputs.appdir }}
+          flutter build apk --debug
+
+  sql_checks:
+    name: Supabase SQL Checks
+    runs-on: ubuntu-latest
+    if: github.repository == 'ibrahimalsattouf88-lab/ManusVA'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify SQL files (basic lints)
+        run: |
+          test -f supabase_fixes.sql && echo "supabase_fixes.sql present"
+          test -f tools/initial_tasks.sql && echo "initial_tasks.sql present"
