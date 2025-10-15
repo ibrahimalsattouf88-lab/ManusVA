@@ -130,6 +130,10 @@ async function execTask(task){
       prompt = `Add a purchase to the accounting system with the following details: ${JSON.stringify(payload)}`;
       break;
       
+    case 'backups.verify':
+      prompt = 'Verify all database backups: check integrity, test restoration, and report status.';
+      break;
+      
     default:
       prompt = `Execute the following task: Type: ${type}, Payload: ${JSON.stringify(payload)}`;
   }
