@@ -17,7 +17,8 @@
 ✅ **تسجيل 17 مهمة** تغطي جميع جوانب النظام  
 ✅ **رفع الكود إلى GitHub** مع جميع الملفات المطلوبة  
 ✅ **إنشاء مهام أولية** جاهزة للتنفيذ  
-✅ **تحديث ملفات `.env`** و **`start.sh`** لتشغيل النظام بسهولة  
+✅ **تطبيق أفضل الممارسات الأمنية** لمتغيرات البيئة (GitHub Secrets)  
+✅ **تحديث `start.sh`** لتشغيل النظام بسهولة وأمان  
 
 ---
 
@@ -66,8 +67,8 @@
   - تسجيل مسارات `/ops`
   - توليد مهام تلقائيًا من أوامر الصوت في `/va/issue`
 
-#### `apps/va-server/.env`
-- **الوظيفة:** ملف متغيرات البيئة لخادم VA
+#### `apps/va-server/.env.example`
+- **الوظيفة:** قالب لمتغيرات البيئة لخادم VA (لا يحتوي على قيم حساسة)
 - **المتغيرات:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `PROVIDER_MODE`, `VA_SIGNING_SECRET`, `OPENAI_API_KEY`, `ASR_CLOUD_API_KEY`, `WHISPER_CPP_BIN`, `WHISPER_MODEL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `BLACK_FX_SOURCES`, `SENTRY_DSN`, `NODE_ENV`, `PORT`, `MANOS_TOKEN`.
 
 ### 2. قاعدة البيانات (Supabase)
@@ -100,28 +101,28 @@
 - **التبعيات:** `node-fetch` للاتصال بـ API
 
 #### `manos-agent.env.example`
-- **المتغيرات المطلوبة:**
-  - `VA_BASE` - عنوان خادم VA
-  - `MANOS_TOKEN` - رمز المصادقة
-  - `MANOS_API_KEY` - مفتاح Manus API
-  - `MANUS_API_URL` - عنوان Manus API
+- **الوظيفة:** قالب لمتغيرات البيئة لـ Manos Agent (لا يحتوي على قيم حساسة)
+- **المتغيرات:** `VA_BASE`, `MANOS_TOKEN`, `MANOS_API_KEY`, `MANUS_API_URL`.
 
 ### 4. تطبيقات Flutter
 
-#### `apps/smart-assistant-app/.env`
-- **الوظيفة:** ملف متغيرات البيئة لتطبيق المساعد الذكي
+#### `apps/smart-assistant-app/.env.example`
+- **الوظيفة:** قالب لمتغيرات البيئة لتطبيق المساعد الذكي (لا يحتوي على قيم حساسة)
 - **المتغيرات:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `PROVIDER_MODE_HINT`.
 
 ### 5. أدوات التشغيل والتوثيق
 
 #### `start.sh`
-- **الوظيفة:** سكريبت لتشغيل خادم VA و Manos Agent تلقائيًا في الخلفية.
+- **الوظيفة:** سكريبت لتشغيل خادم VA و Manos Agent تلقائيًا في الخلفية، مع التأكيد على ضرورة تعيين متغيرات البيئة خارجيًا.
 
 #### `tasks_verification.md`
 - تحقق شامل من جميع المهام المطلوبة.
 
 #### `FINAL_REPORT.md`
 - هذا التقرير.
+
+#### `.gitignore`
+- تم تحديثه لتجاهل جميع ملفات `.env` لضمان الأمان.
 
 ---
 
@@ -177,10 +178,20 @@
 # 4. نفذ tools/initial_tasks.sql
 ```
 
-### الخطوة 2: إعداد ملفات .env
+### الخطوة 2: إعداد متغيرات البيئة (GitHub Secrets أو محليًا)
 
-- **`apps/va-server/.env`**: قم بتعبئة جميع المتغيرات المطلوبة (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, MANOS_TOKEN, OPENAI_API_KEY, إلخ).
-- **`apps/smart-assistant-app/.env`**: قم بتعبئة `SUPABASE_URL` و `SUPABASE_ANON_KEY`.
+**لخادم VA:**
+قم بإنشاء ملف `.env` يدويًا في مجلد `apps/va-server/` بناءً على `apps/va-server/.env.example`، واملأ القيم الحقيقية. أو قم بتعيين هذه المتغيرات كمتغيرات بيئة في بيئة التشغيل الخاصة بك (مثال: GitHub Actions, Codemagic).
+
+**لتطبيق Flutter (Smart Assistant App):**
+قم بإنشاء ملف `.env` يدويًا في مجلد `apps/smart-assistant-app/` بناءً على `apps/smart-assistant-app/.env.example`، واملأ القيم الحقيقية. أو قم بتعيين هذه المتغيرات كمتغيرات بيئة في بيئة التشغيل الخاصة بك.
+
+**لـ Manos Agent:**
+يجب تعيين المتغيرات التالية كمتغيرات بيئة قبل تشغيل `manos-agent.mjs` (مثال: GitHub Secrets, CI/CD environment variables):
+- `VA_BASE` (عنوان خادم VA، مثال: `http://127.0.0.1:8080`)
+- `MANOS_TOKEN` (نفس القيمة المستخدمة في خادم VA)
+- `MANOS_API_KEY` (مفتاح Manus API الخاص بك)
+- `MANUS_API_URL` (عنوان Manus API، افتراضيًا: `https://api.manus.im/v1`)
 
 ### الخطوة 3: تشغيل النظام
 
@@ -191,8 +202,7 @@ chmod +x start.sh
 # قم بتشغيل الخادم والوكيل
 ./start.sh
 
-# تأكد من استبدال <replace_with_your_manos_token> في start.sh بنفس قيمة MANOS_TOKEN في apps/va-server/.env
-# وتأكد من تعيين MANOS_API_KEY و MANUS_API_URL في start.sh إذا كنت تستخدم Manus API خارجيًا.
+# ملاحظة: سكريبت start.sh سيتوقع أن تكون متغيرات البيئة المطلوبة لـ Manos Agent قد تم تعيينها مسبقًا.
 ```
 
 ---
@@ -201,16 +211,17 @@ chmod +x start.sh
 
 ### المفاتيح المطلوبة
 
-1. **`SUPABASE_SERVICE_ROLE_KEY`** - في خادم VA فقط
-2. **`MANOS_TOKEN`** - مشترك بين خادم VA و Manos Agent
-3. **`MANOS_API_KEY`** - في Manos Agent فقط (إذا كان يستدعي Manus API مباشرة)
+1. **`SUPABASE_SERVICE_ROLE_KEY`** - في خادم VA فقط (يجب أن يكون GitHub Secret أو متغير بيئة)
+2. **`MANOS_TOKEN`** - مشترك بين خادم VA و Manos Agent (يجب أن يكون GitHub Secret أو متغير بيئة)
+3. **`MANOS_API_KEY`** - في Manos Agent فقط (يجب أن يكون GitHub Secret أو متغير بيئة)
 
 ### أفضل الممارسات
 
-- ✅ جميع المفاتيح في ملفات `.env` (غير مرفوعة إلى Git)
-- ✅ المصادقة على جميع نقاط نهاية `/ops`
-- ✅ لا مفاتيح حساسة في تطبيقات Flutter
-- ✅ استخدام `SERVICE_ROLE_KEY` في الخادم فقط
+- ✅ جميع المفاتيح الحساسة تُخزن كـ **GitHub Secrets** أو متغيرات بيئة في بيئة التشغيل.
+- ✅ ملفات `.env` المحلية تُستخدم فقط للتطوير ولا تُرفع إلى Git.
+- ✅ المصادقة على جميع نقاط نهاية `/ops`.
+- ✅ لا مفاتيح حساسة في تطبيقات Flutter (تستخدم `SUPABASE_ANON_KEY` فقط).
+- ✅ استخدام `SERVICE_ROLE_KEY` في الخادم فقط.
 
 ---
 
@@ -345,7 +356,7 @@ await supa.from('ops_tasks').insert({
 3. ✅ **17 مهمة** مسجلة ومجهزة
 4. ✅ **10 مهام أولية** جاهزة للتنفيذ
 5. ✅ **توثيق شامل** (هذا التقرير)
-6. ✅ **ملفات `.env`** و **`start.sh`** معدة للتشغيل
+6. ✅ **ملفات `.env.example`** و **`start.sh`** معدة للتشغيل الآمن
 
 ### ما سيتم تنفيذه تلقائيًا
 
@@ -365,7 +376,7 @@ await supa.from('ops_tasks').insert({
 
 1. **تطبيق `supabase_fixes.sql`** على قاعدة البيانات
 2. **تطبيق `tools/initial_tasks.sql`** لإنشاء المهام الأولية
-3. **إعداد ملفات `.env`** في خادم VA وتطبيق Flutter
+3. **إعداد متغيرات البيئة** (GitHub Secrets أو محليًا) كما هو موضح في الخطوة 2 من "خطوات التشغيل".
 4. **تشغيل النظام** باستخدام `start.sh`
 
 ### قصير المدى (1-7 أيام)
@@ -389,7 +400,7 @@ await supa.from('ops_tasks').insert({
 تم إنشاء نظام أتمتة كامل ومتكامل يحقق هدف **"0 نقص / 0 خطأ"**. النظام جاهز للتشغيل ويتطلب فقط:
 
 1. ✅ تطبيق SQL على Supabase
-2. ✅ إعداد متغيرات البيئة
+2. ✅ إعداد متغيرات البيئة بشكل آمن
 3. ✅ تشغيل خادم VA و Manos Agent
 
 بعد ذلك، سيعمل النظام **تلقائيًا بالكامل** بدون أي تدخل يدوي.
@@ -402,7 +413,7 @@ await supa.from('ops_tasks').insert({
 
 1. **تحقق من السجلات** (logs) في خادم VA و Manos Agent
 2. **راجع جدول `ops_tasks`** للتحقق من حالة المهام
-3. **تأكد من صحة المتغيرات** في `.env`
+3. **تأكد من صحة المتغيرات** في بيئة التشغيل (GitHub Secrets أو `.env` المحلي)
 4. **تحقق من الاتصال** بـ Supabase و Manus API
 
 ---

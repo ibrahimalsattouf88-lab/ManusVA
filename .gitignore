@@ -1,9 +1,7 @@
 node_modules/
 .cache/
 dist/
-# *.env
-!apps/va-server/.env
-!apps/smart-assistant-app/.env
+*.env
 .nvm/
 apps/control-panel-app/
 apps/smart-assistant-app/
