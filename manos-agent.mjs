@@ -2,187 +2,227 @@
 
 /**
  * Manos Agent - Automated Task Execution Agent
- * This agent polls the VA server for pending tasks and executes them automatically.
+ * This agent polls the VA server for pending tasks and executes them by calling Manus API.
  */
 
-import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import fetch from 'node-fetch';
 
-// Configuration
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const VA_SERVER_URL = process.env.VA_SERVER_URL || 'http://localhost:8080';
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '5000'); // 5 seconds default
+const BASE = process.env.VA_BASE ?? 'http://localhost:8080';
+const MANOS_API_KEY = process.env.MANOS_API_KEY;
+const MANOS_API_URL = process.env.MANUS_API_URL || 'https://api.manus.im/v1';
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error('Error: Missing required environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)');
+const HEAD = { 
+  'Authorization': `Bearer ${process.env.MANOS_TOKEN}`, 
+  'Content-Type':'application/json' 
+};
+
+if (!MANOS_API_KEY) {
+  console.error('Error: MANOS_API_KEY environment variable is required');
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
 /**
- * Fetch pending tasks from the VA server
+ * Call Manus API to execute a task
  */
-async function fetchPendingTasks() {
+async function callManusAPI(prompt) {
   try {
-    const response = await fetch(`${VA_SERVER_URL}/ops/task/pending`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.tasks || [];
-  } catch (error) {
-    console.error('Error fetching pending tasks:', error.message);
-    return [];
-  }
-}
-
-/**
- * Update task status
- */
-async function updateTaskStatus(taskId, status, result = null) {
-  try {
-    const response = await fetch(`${VA_SERVER_URL}/ops/task/update`, {
+    const response = await fetch(`${MANOS_API_URL}/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId, status, result }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${MANOS_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'manus-1',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`Manus API error! status: ${response.status}`);
     }
-    return await response.json();
+
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content || 'No response from Manus';
   } catch (error) {
-    console.error(`Error updating task ${taskId}:`, error.message);
-    return null;
+    throw new Error(`Failed to call Manus API: ${error.message}`);
   }
 }
 
 /**
- * Execute a task based on its payload
+ * Execute a task by calling Manus API with appropriate instructions
  */
-async function executeTask(task) {
-  console.log(`Executing task ${task.id}...`);
+async function execTask(task){
+  const { type, payload } = task;
   
+  console.log(`Executing task type: ${type}`);
+  
+  let prompt = '';
+  
+  // Build the appropriate prompt based on task type
+  switch(type) {
+    case 'va.ws.health':
+      prompt = 'Check the WebSocket health status and return a health report.';
+      break;
+      
+    case 'va.cmd.replay':
+      prompt = `Replay the following voice command that failed: ${JSON.stringify(payload)}`;
+      break;
+      
+    case 'asr.install_models':
+      prompt = 'Install and configure ASR models (whisper.cpp and Vosk) for Arabic speech recognition. Return installation status.';
+      break;
+      
+    case 'asr.switch_offline_on_fail':
+      prompt = 'Switch ASR to offline mode due to network failure. Configure fallback to local models.';
+      break;
+      
+    case 'analytics.rollup_daily':
+      prompt = 'Perform daily analytics rollup: aggregate user engagement, VA performance metrics, and behavioral insights.';
+      break;
+      
+    case 'analytics.behavioral_insights.sync':
+      prompt = 'Sync behavioral insights from va_phrase_stats table and generate user behavior patterns.';
+      break;
+      
+    case 'fx.refresh':
+      prompt = 'Refresh Syrian Pound (SYP) black market exchange rates from 5 sources, filter anomalies, and calculate weighted average.';
+      break;
+      
+    case 'fx.validate_anomalies':
+      prompt = 'Validate FX data for anomalies, remove outliers, and ensure data integrity.';
+      break;
+      
+    case 'sec.rls_audit':
+      prompt = 'Audit Row Level Security (RLS) policies for all sensitive tables in Supabase. Report any security issues.';
+      break;
+      
+    case 'sec.service_paths.lint':
+      prompt = 'Lint all service API paths for security vulnerabilities, authentication issues, and authorization problems.';
+      break;
+      
+    case 'ci.smoke':
+      prompt = 'Run smoke tests after deployment: test all critical endpoints, verify database connectivity, check WebSocket functionality.';
+      break;
+      
+    case 'ci.uat_report':
+      prompt = 'Generate User Acceptance Testing (UAT) report with all test scenarios and results. Format: 0 failures / 0 errors.';
+      break;
+      
+    case 'ci.rollback_on_fail':
+      prompt = 'Deployment failed. Perform automatic rollback to the last stable version.';
+      break;
+      
+    case 'build.apk.release':
+      prompt = 'Build and sign release APK for both Smart Assistant and Control Panel Flutter applications. Configure Codemagic CI/CD pipeline.';
+      break;
+      
+    case 'handover.generate_brief':
+      prompt = 'Generate handover documentation (PDF) including: setup instructions, environment variables, API documentation, and UAT checklist.';
+      break;
+      
+    case 'accounting.add_purchase':
+      prompt = `Add a purchase to the accounting system with the following details: ${JSON.stringify(payload)}`;
+      break;
+      
+    default:
+      prompt = `Execute the following task: Type: ${type}, Payload: ${JSON.stringify(payload)}`;
+  }
+  
+  // Call Manus API to execute the task
   try {
-    // Update status to 'processing'
-    await updateTaskStatus(task.id, 'processing');
-
-    const { payload } = task;
-    let result = {};
-
-    // Task execution logic based on payload type
-    if (payload?.type === 'voice_command') {
-      // Handle voice command execution
-      result = await handleVoiceCommand(payload);
-    } else if (payload?.type === 'scheduled_task') {
-      // Handle scheduled task execution
-      result = await handleScheduledTask(payload);
-    } else if (payload?.type === 'automation') {
-      // Handle general automation task
-      result = await handleAutomation(payload);
-    } else {
-      throw new Error(`Unknown task type: ${payload?.type}`);
-    }
-
-    // Update status to 'completed'
-    await updateTaskStatus(task.id, 'completed', result);
-    console.log(`Task ${task.id} completed successfully.`);
+    const manusResponse = await callManusAPI(prompt);
+    return { 
+      ok: true, 
+      result: manusResponse,
+      type: type,
+      timestamp: new Date().toISOString()
+    };
   } catch (error) {
-    console.error(`Error executing task ${task.id}:`, error.message);
-    await updateTaskStatus(task.id, 'failed', { error: error.message });
+    return { 
+      ok: false, 
+      error: error.message,
+      type: type
+    };
   }
-}
-
-/**
- * Handle voice command execution
- */
-async function handleVoiceCommand(payload) {
-  console.log('Handling voice command:', payload);
-  
-  // Example: Execute a voice command
-  // This is where you would integrate with external services or APIs
-  
-  return {
-    success: true,
-    message: 'Voice command executed successfully',
-    timestamp: new Date().toISOString(),
-  };
-}
-
-/**
- * Handle scheduled task execution
- */
-async function handleScheduledTask(payload) {
-  console.log('Handling scheduled task:', payload);
-  
-  // Example: Execute a scheduled task
-  // This could involve sending notifications, updating data, etc.
-  
-  return {
-    success: true,
-    message: 'Scheduled task executed successfully',
-    timestamp: new Date().toISOString(),
-  };
-}
-
-/**
- * Handle general automation task
- */
-async function handleAutomation(payload) {
-  console.log('Handling automation task:', payload);
-  
-  // Example: Execute an automation task
-  // This could involve complex workflows, API calls, data processing, etc.
-  
-  return {
-    success: true,
-    message: 'Automation task executed successfully',
-    timestamp: new Date().toISOString(),
-  };
 }
 
 /**
  * Main polling loop
  */
-async function pollAndExecute() {
-  console.log('Polling for pending tasks...');
-  
-  const tasks = await fetchPendingTasks();
-  
-  if (tasks.length > 0) {
-    console.log(`Found ${tasks.length} pending task(s).`);
-    
-    // Execute tasks sequentially
-    for (const task of tasks) {
-      await executeTask(task);
+async function loop(){
+  while(true){
+    try {
+      const next = await fetch(`${BASE}/ops/next`, { method:'POST', headers: HEAD });
+      const { task } = await next.json();
+      
+      if(!task){ 
+        await new Promise(r=>setTimeout(r, 1500)); 
+        continue; 
+      }
+      
+      console.log(`\n[${new Date().toISOString()}] Received task: ${task.id} (${task.type})`);
+      
+      try {
+        const res = await execTask(task);
+        await fetch(`${BASE}/ops/complete`, {
+          method:'POST', 
+          headers: HEAD, 
+          body: JSON.stringify({ 
+            id: task.id, 
+            ok: !!res.ok, 
+            result: res, 
+            error: res.error 
+          })
+        });
+        console.log(`[${new Date().toISOString()}] Task ${task.id} completed: ${res.ok ? 'SUCCESS' : 'FAILED'}`);
+        if (res.ok && res.result) {
+          console.log(`Result preview: ${res.result.substring(0, 200)}...`);
+        }
+      } catch (e) {
+        await fetch(`${BASE}/ops/complete`, {
+          method:'POST', 
+          headers: HEAD, 
+          body: JSON.stringify({ 
+            id: task.id, 
+            ok:false, 
+            error: String(e) 
+          })
+        });
+        console.error(`[${new Date().toISOString()}] Task ${task.id} failed with exception:`, e);
+      }
+    } catch (e) {
+      console.error(`[${new Date().toISOString()}] Polling error:`, e.message);
+      await new Promise(r=>setTimeout(r, 5000)); // Wait 5 seconds before retrying
     }
-  } else {
-    console.log('No pending tasks found.');
   }
 }
 
-/**
- * Start the agent
- */
-async function startAgent() {
-  console.log('Manos Agent started.');
-  console.log(`VA Server URL: ${VA_SERVER_URL}`);
-  console.log(`Poll Interval: ${POLL_INTERVAL}ms`);
-  console.log('---');
-  
-  // Initial poll
-  await pollAndExecute();
-  
-  // Set up recurring poll
-  setInterval(async () => {
-    await pollAndExecute();
-  }, POLL_INTERVAL);
-}
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n\nShutting down Manos Agent...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n\nShutting down Manos Agent...');
+  process.exit(0);
+});
 
 // Start the agent
-startAgent().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+console.log('='.repeat(60));
+console.log('Manos Agent started.');
+console.log(`VA Server URL: ${BASE}`);
+console.log(`Manus API URL: ${MANOS_API_URL}`);
+console.log(`Authorization: ${HEAD.Authorization ? 'Configured' : 'Missing'}`);
+console.log(`Manus API Key: ${MANOS_API_KEY ? 'Configured' : 'Missing'}`);
+console.log('='.repeat(60));
+console.log('');
+
+loop();
 

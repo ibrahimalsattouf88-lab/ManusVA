@@ -28,24 +28,26 @@ set automation_percentage = greatest(70, least(automation_percentage, 80))
 where automation_percentage is not null
   and (automation_percentage < 70 or automation_percentage > 80);
 
-
 -- 3.3 ops_tasks table for automated task execution
-CREATE TABLE public.ops_tasks (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    command_id uuid REFERENCES public.voice_commands(id) ON DELETE CASCADE,
-    status text NOT NULL DEFAULT 'queued',
-    payload jsonb,
-    result jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+create table if not exists public.ops_tasks (
+  id uuid primary key default gen_random_uuid(),
+  type text not null,               -- مثال: accounting.add_purchase
+  payload jsonb not null,           -- بيانات العملية
+  status text not null default 'queued', -- queued|running|done|failed
+  result jsonb,                     -- مخرجات مانوس
+  error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
+
+create index if not exists idx_ops_tasks_status on public.ops_tasks(status);
+
+create trigger trg_ops_tasks_updated before update on public.ops_tasks
+for each row execute procedure moddatetime (updated_at);
 
 -- Enable row level security for ops_tasks
 ALTER TABLE public.ops_tasks ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for ops_tasks (adjust as needed for your application's security model)
 CREATE POLICY "Allow all for now" ON public.ops_tasks USING (true) WITH CHECK (true);
-
--- Trigger for updated_at column
-CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.ops_tasks FOR EACH ROW EXECUTE FUNCTION moddatetime('updated_at');
 

@@ -7,7 +7,7 @@ import opsRoutes from './routes/ops';
 
 const app = fastify({ logger: true });
 app.register(websocket);
-app.register(opsRoutes, { prefix: '/ops' });
+app.register(opsRoutes);
 
 const supa = createClient(cfg.supabaseUrl, cfg.supabaseServiceKey);
 
@@ -41,6 +41,13 @@ app.post('/va/issue', async (req, reply) => {
      .insert({ session_id, section_slug: meta?.section, matched_phrase: meta?.phrase, route, handler, status: 'queued', meta })
      .select('id').single();
   if(ins.error) return reply.code(500).send({ error: ins.error.message });
+  
+  // توليد مهام تلقائيًا من أوامر الصوت
+  await supa.from('ops_tasks').insert({
+    type: handler,               // مثال: "accounting.add_purchase"
+    payload: { session_id, meta, route }
+  });
+  
   return { commandId: ins.data.id, status: 'queued' };
 });
 
