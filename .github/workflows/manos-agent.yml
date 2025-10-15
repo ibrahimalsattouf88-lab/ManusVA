@@ -3,7 +3,7 @@ name: Manos Agent – Pull & Execute Ops
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"   # كل 5 دقائق
+    - cron: "*/5 * * * *"
 
 jobs:
   run_agent:
@@ -16,17 +16,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install deps (if any)
+      - name: Install dependencies
         run: |
-          [ -f "manos-agent-package.json" ] && npm i --prefix . || true
+          npm i --no-audit --no-fund
 
       - name: Run manos-agent (long-poll once)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          VA_BASE: ${{ secrets.VA_BASE }}          # مثال: https://va.example.com
-          MANOS_TOKEN: ${{ secrets.MANOS_TOKEN }}  # من Manus
-          MANUS_API_URL: ${{ secrets.MANUS_API_URL }} # مثال: https://api.manus.in/v1
-          # (MANOS_API_KEY) اختياري إن لزم
+          VA_BASE: ${{ secrets.VA_BASE }}
+          MANOS_TOKEN: ${{ secrets.MANOS_TOKEN }}
+          MANUS_API_URL: ${{ secrets.MANUS_API_URL }}
+          MANOS_API_KEY: ${{ secrets.MANOS_API_KEY }}
         run: |
           node manos-agent.mjs
