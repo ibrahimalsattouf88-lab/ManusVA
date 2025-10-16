@@ -1,5 +1,5 @@
 
-name: Manos Agent — Pull & Execute Ops
+name: Manos Agent — Pull & Execute Opsrun_agent.yml
 on:
   workflow_dispatch:
 jobs:
