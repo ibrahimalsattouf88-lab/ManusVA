@@ -1,10 +1,3 @@
-name: Manos Agent — Pull & Execute Ops
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/10 * * * *" # كل 10 دقائق
-
 jobs:
   run_agent:
     runs-on: ubuntu-latest
@@ -15,21 +8,39 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
-      - name: Install dependencies
+      # 1) شغّل خادم VA محليًا على المنفذ 8080
+      - name: Install & Build VA Server
+        working-directory: apps/va-server
         run: |
-          npm --version
-          # نضمن وجود node-fetch@3 عندما نعمل في بيئة لا تدعم fetch
-          node -e "try{require('node-fetch');console.log('node-fetch present')}catch(e){process.exit(1)}" || npm i node-fetch@3
+          npm ci
+          npm run build
+          nohup node dist/server.js > ../../va.log 2>&1 &
 
+      - name: Wait for VA to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8080/health > /dev/null; then
+              echo "VA is up";
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "VA did not start in time" && exit 1
+
+      # 2) شغّل الوكيل وهو يشير للـVA المحلي
       - name: Run manos-agent (one shot)
         env:
+          # مفاتيحك من Secrets
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          VA_BASE: ${{ secrets.VA_BASE }}
-          MANUS_API_URL: ${{ secrets.MANUS_API_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           MANOS_API_KEY: ${{ secrets.MANOS_API_KEY }}
-          MANOS_TOKEN: ${{ secrets.MANOS_TOKEN }}
+          # مهم: خليه على المحلي
+          VA_SERVER_URL: http://127.0.0.1:8080
+          MANUS_API_URL: ${{ secrets.MANUS_API_URL }} # مثال: https://api.manus.im/v1
+          POLL_INTERVAL: "5000"
         run: |
+          npm --version
           node manos-agent.mjs
