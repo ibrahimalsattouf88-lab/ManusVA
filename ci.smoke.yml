@@ -1,0 +1,36 @@
+
+name: VA Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apps/va-server/**"
+      - ".github/workflows/ci.smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        working-directory: apps/va-server
+        run: npm ci
+      - name: Build
+        working-directory: apps/va-server
+        run: npm run build
+      - name: Run server
+        working-directory: apps/va-server
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          VA_SIGNING_SECRET: test_secret
+          NODE_ENV: production
+          PORT: 8080
+        run: node dist/server.js & sleep 2
+      - name: Health check
+        run: curl -fsS http://127.0.0.1:8080/health
