@@ -1,0 +1,79 @@
+name: Autopilot — Sync & Build (all)
+
+on:
+  workflow_dispatch:
+    inputs:
+      do_build:
+        description: "Trigger Codemagic builds for both apps"
+        required: true
+        default: "yes"
+        type: choice
+        options: ["yes", "no"]
+      run_agent:
+        description: "Run Manos Agent once (pull & execute ops)"
+        required: true
+        default: "yes"
+        type: choice
+        options: ["yes", "no"]
+
+permissions:
+  contents: read
+
+jobs:
+  build_mobile_apps:
+    if: ${{ github.event.inputs.do_build == 'yes' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Codemagic — smart-assistant-app
+        env:
+          CM_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+          CM_APP_ID: ${{ secrets.CODEMAGIC_APP_ID_SMART }}
+          CM_WORKFLOW_ID: ${{ secrets.CODEMAGIC_WORKFLOW_ID_SMART }}
+        run: |
+          test -n "$CM_TOKEN" || { echo "Missing secret CODEMAGIC_API_TOKEN"; exit 1; }
+          test -n "$CM_APP_ID" || { echo "Missing secret CODEMAGIC_APP_ID_SMART"; exit 1; }
+          test -n "$CM_WORKFLOW_ID" || { echo "Missing secret CODEMAGIC_WORKFLOW_ID_SMART"; exit 1; }
+          curl -sS -X POST https://api.codemagic.io/builds \
+            -H "x-auth-token: $CM_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"appId\":\"$CM_APP_ID\",\"workflowId\":\"$CM_WORKFLOW_ID\"}"
+
+      - name: Trigger Codemagic — control-panel-app
+        env:
+          CM_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+          CM_APP_ID: ${{ secrets.CODEMAGIC_APP_ID_CONTROL }}
+          CM_WORKFLOW_ID: ${{ secrets.CODEMAGIC_WORKFLOW_ID_CONTROL }}
+        run: |
+          test -n "$CM_TOKEN" || { echo "Missing secret CODEMAGIC_API_TOKEN"; exit 1; }
+          test -n "$CM_APP_ID" || { echo "Missing secret CODEMAGIC_APP_ID_CONTROL"; exit 1; }
+          test -n "$CM_WORKFLOW_ID" || { echo "Missing secret CODEMAGIC_WORKFLOW_ID_CONTROL"; exit 1; }
+          curl -sS -X POST https://api.codemagic.io/builds \
+            -H "x-auth-token: $CM_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"appId\":\"$CM_APP_ID\",\"workflowId\":\"$CM_WORKFLOW_ID\"}"
+
+  run_agent_once:
+    if: ${{ github.event.inputs.run_agent == 'yes' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ManusVA
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install lightweight deps
+        run: |
+          npm --version
+          npm i node-fetch@3
+
+      - name: Run Manos Agent (one shot)
+        env:
+          # نفس متغيّرات البيئة اللي عندك بالrepo
+          MANOS_API_KEY: ${{ secrets.MANOS_API_KEY }}
+          MANOS_API_URL: ${{ secrets.MANUS_API_URL || secrets.MANOS_API_URL }}
+          VA_BASE: ${{ secrets.VA_BASE || 'http://127.0.0.1:8080' }}
+        run: |
+          node manos-agent.mjs || true
