@@ -1,0 +1,51 @@
+name: Autopilot Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: 'repo_owner/repo_name'
+        required: true
+        default: 'ibrahimalsattouf88-lab/smart-assistant-app'
+      commit_message:
+        description: 'Commit message'
+        required: true
+        default: 'chore(bot): automated fix'
+      file_path:
+        description: 'Path to file to overwrite or create'
+        required: true
+        default: 'README.md'
+      file_contents:
+        description: 'New contents (multiline supported)'
+        required: true
+        default: "Updated by autopilot-bot."
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.GITHUB_APP_ID }}
+          installation_id: ${{ secrets.GITHUB_INSTALLATION_ID }}
+          private_key: ${{ secrets.GITHUB_PRIVATE_KEY }}
+
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.target_repo }}
+          token: ${{ steps.app_token.outputs.token }}
+
+      - name: Apply change
+        run: |
+          mkdir -p "$(dirname "${{ github.event.inputs.file_path }}")"
+          cat > "${{ github.event.inputs.file_path }}" <<'EOF'
+${{ github.event.inputs.file_contents }}
+EOF
+          git config user.name "autopilot-bot[app]"
+          git config user.email "autopilot-bot@users.noreply.github.com"
+          git add "${{ github.event.inputs.file_path }}"
+          git commit -m "${{ github.event.inputs.commit_message }}" || echo "No changes"
+          git push
