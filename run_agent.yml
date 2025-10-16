@@ -1,0 +1,16 @@
+
+name: Manos Agent — Pull & Execute Ops
+on:
+  workflow_dispatch:
+jobs:
+  run_agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i
+      - run: node manos-agent.mjs
+        env:
+          MANOS_API_URL: ${{ secrets.MANOS_API_URL }}
+          MANOS_API_KEY: ${{ secrets.MANOS_API_KEY }}
