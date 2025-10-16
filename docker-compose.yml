@@ -1,0 +1,22 @@
+
+version: '3.9'
+services:
+  va:
+    build: ./apps/va-server
+    env_file:
+      - ./apps/va-server/.env
+    ports:
+      - "8080:8080"
+  manos-agent:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: ["node","manos-agent.mjs"]
+    environment:
+      - VA_BASE=http://va:8080
+      - MANOS_TOKEN=${MANOS_TOKEN}
+      - MANUS_API_URL=${MANUS_API_URL}
+      - MANUS_API_KEY=${MANUS_API_KEY}
+    depends_on:
+      - va
